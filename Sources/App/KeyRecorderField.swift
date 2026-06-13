@@ -17,27 +17,48 @@ struct KeyRecorderField: View {
     @Binding var displayChar: UInt8
     @State private var isRecording = false
 
+    private var hasKey: Bool { displayChar != 0xFE }
+
     private var label: String {
-        if displayChar == 0xFE { return isRecording ? "Nhấn phím…" : "Chưa đặt" }
+        if isRecording { return "Nhấn phím…" }
+        if !hasKey { return "Chưa đặt" }
         if keyCode == UInt8(kVK_Space) { return "Space" }
         let scalar = UnicodeScalar(displayChar)
         return String(scalar).uppercased()
     }
 
     var body: some View {
-        Button {
-            isRecording.toggle()
-        } label: {
-            Text(label)
-                .frame(minWidth: 64)
-                .foregroundStyle(displayChar == 0xFE && !isRecording ? .secondary : .primary)
+        HStack(spacing: 4) {
+            Button {
+                isRecording.toggle()
+            } label: {
+                Text(label)
+                    .frame(minWidth: 70)
+                    .foregroundStyle(!hasKey && !isRecording ? .secondary : .primary)
+            }
+            .buttonStyle(.bordered)
+            .background(KeyCaptureRepresentable(isRecording: $isRecording, keyCode: $keyCode, displayChar: $displayChar))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isRecording ? Color.accentColor : .clear, lineWidth: 2)
+            )
+            .help(isRecording ? "Nhấn phím bất kỳ, hoặc Delete để chỉ dùng phím chức năng" : "Bấm để đổi phím")
+
+            // explicit clear affordance — removing the key lets the user switch
+            // with modifiers alone (the Delete shortcut alone is not discoverable)
+            Button {
+                keyCode = 0xFE
+                displayChar = 0xFE
+                isRecording = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Bỏ phím — chỉ dùng phím chức năng")
+            .opacity(hasKey ? 1 : 0)
+            .disabled(!hasKey)
         }
-        .buttonStyle(.bordered)
-        .background(KeyCaptureRepresentable(isRecording: $isRecording, keyCode: $keyCode, displayChar: $displayChar))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isRecording ? Color.accentColor : .clear, lineWidth: 2)
-        )
     }
 }
 
