@@ -113,6 +113,12 @@ final class MkeyAppDelegate: NSObject, NSApplicationDelegate {
         registerWorkspaceNotifications()
         observeQuickConvert()
 
+        // banner "Mở Cài đặt hệ thống" button asks us to (re-)register for AX
+        NotificationCenter.default.addObserver(forName: .mkRequestAccessibility,
+                                               object: nil, queue: .main) { [weak self] _ in
+            self?.askForAccessibility()
+        }
+
         if AXIsProcessTrusted() {
             startEngine()
         } else {
@@ -218,4 +224,5 @@ final class MkeyAppDelegate: NSObject, NSApplicationDelegate {
 
 extension Notification.Name {
     static let mkOpenSettingsWindow = Notification.Name("MKOpenSettingsWindow")
+    static let mkRequestAccessibility = Notification.Name("MKRequestAccessibility")
 }

@@ -126,6 +126,10 @@ struct PermissionBanner: View {
                 .font(.callout.weight(.medium))
             Spacer()
             Button("Mở Cài đặt hệ thống") {
+                // re-register MKey into the Accessibility list (macOS won't let an
+                // app enable itself, but this adds it back so the user only needs
+                // to flip the switch) and start polling so no relaunch is needed
+                NotificationCenter.default.post(name: .mkRequestAccessibility, object: nil)
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                     NSWorkspace.shared.open(url)
                 }
