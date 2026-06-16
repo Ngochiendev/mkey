@@ -37,14 +37,19 @@ struct ClipboardPage: View {
                                 .font(.body.weight(.semibold))
                                 .monospacedDigit()
                         }
-                        // plain full-width slider (no value labels → no render glitch)
+                        // Label + .labelsHidden() stops Form from reserving a
+                        // left label column (which pushed the track to the
+                        // right half). No value labels → avoids the render glitch.
                         Slider(
                             value: Binding(
                                 get: { Double(manager.maxItems) },
                                 set: { manager.maxItems = Int($0.rounded()) }
                             ),
                             in: 10...100
-                        )
+                        ) {
+                            Text("Số mục tối đa")
+                        }
+                        .labelsHidden()
                         HStack {
                             Text("10")
                             Spacer()
