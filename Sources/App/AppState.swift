@@ -206,6 +206,21 @@ final class AppState: ObservableObject {
         showUIOnStartup = defaults.integer(forKey: "ShowUIOnStartup") != 0
         runOnStartup = SMAppService.mainApp.status == .enabled
 
+        // Default ON: register as a login item on the very first launch only.
+        // The flag ensures we never force it back on if the user later opts out.
+        // (didSet observers don't fire inside init, so register explicitly.)
+        if !defaults.bool(forKey: "mkLoginItemInitialized") {
+            defaults.set(true, forKey: "mkLoginItemInitialized")
+            if SMAppService.mainApp.status != .enabled {
+                do {
+                    try SMAppService.mainApp.register()
+                } catch {
+                    NSLog("mkey: initial login-item register failed: \(error)")
+                }
+            }
+            runOnStartup = SMAppService.mainApp.status == .enabled
+        }
+
         convertFromCode = defaults.integer(forKey: "convertToolFromCode")
         convertToCode = defaults.integer(forKey: "convertToolToCode")
         convertAlert = defaults.bool(forKey: "convertToolAlertWhenCompleted")
