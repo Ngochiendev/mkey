@@ -12,7 +12,6 @@
 #include "Engine.h"
 #import "MKBridge.h"
 
-#define FRONT_APP [[NSWorkspace sharedWorkspace] frontmostApplication].bundleIdentifier
 #define OTHER_CONTROL_KEY (_flag & kCGEventFlagMaskCommand) || (_flag & kCGEventFlagMaskControl) || \
                             (_flag & kCGEventFlagMaskAlternate) || (_flag & kCGEventFlagMaskSecondaryFn) || \
                             (_flag & kCGEventFlagMaskNumericPad) || (_flag & kCGEventFlagMaskHelp)
@@ -60,6 +59,8 @@ extern "C" {
     pid_t _axLoggedPid = 0;
     CFAbsoluteTime _lastKeystrokeTime = 0;
     bool _cachedIsEnglishLayout = true;
+    bool _inputSourceObserverInstalled = false;
+    pid_t _frontMostPid = 0;
 
     void MKUpdateInputSourceCache() {
         TISInputSourceRef isource = TISCopyCurrentKeyboardInputSource();
@@ -368,14 +369,17 @@ extern "C" {
 
         MKUpdateInputSourceCache();
 
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            NULL,
-            MKInputSourceChangedCallback,
-            kTISNotifySelectedKeyboardInputSourceChanged,
-            NULL,
-            CFNotificationSuspensionBehaviorDeliverImmediately
-        );
+        if (!_inputSourceObserverInstalled) {
+            CFNotificationCenterAddObserver(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                NULL,
+                MKInputSourceChangedCallback,
+                kTISNotifySelectedKeyboardInputSourceChanged,
+                NULL,
+                CFNotificationSuspensionBehaviorDeliverImmediately
+            );
+            _inputSourceObserverInstalled = true;
+        }
     }
 
     void RequestNewSession() {
@@ -389,11 +393,27 @@ extern "C" {
     }
 
     void queryFrontMostApp() {
-        if ([[[NSWorkspace sharedWorkspace] frontmostApplication].bundleIdentifier compare:[[NSBundle mainBundle] bundleIdentifier]] != 0) {
-            _frontMostApp = [[NSWorkspace sharedWorkspace] frontmostApplication].bundleIdentifier;
+        NSRunningApplication* app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        NSString* bundleIdentifier = app.bundleIdentifier;
+        if (bundleIdentifier == nil || [bundleIdentifier compare:[[NSBundle mainBundle] bundleIdentifier]] != 0) {
+            _frontMostApp = bundleIdentifier;
             if (_frontMostApp == nil)
-                _frontMostApp = [[NSWorkspace sharedWorkspace] frontmostApplication].localizedName != nil ?
-                [[NSWorkspace sharedWorkspace] frontmostApplication].localizedName : @"UnknownApp";
+                _frontMostApp = app.localizedName != nil ? app.localizedName : @"UnknownApp";
+            _frontMostPid = app.processIdentifier;
+        }
+    }
+
+    void updateFrontMostAppForEvent(CGEventRef event) {
+        pid_t pid = (pid_t)CGEventGetIntegerValueField(event, kCGEventTargetUnixProcessID);
+        if (pid <= 0 || pid == _frontMostPid)
+            return;
+        NSRunningApplication* app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+        NSString* bundleIdentifier = app.bundleIdentifier;
+        if (bundleIdentifier == nil || [bundleIdentifier compare:[[NSBundle mainBundle] bundleIdentifier]] != 0) {
+            _frontMostApp = bundleIdentifier;
+            if (_frontMostApp == nil)
+                _frontMostApp = app.localizedName != nil ? app.localizedName : @"UnknownApp";
+            _frontMostPid = pid;
         }
     }
 
@@ -556,7 +576,7 @@ extern "C" {
             InsertKeyLength(1);
 
         _newChar = 0x202F; //empty char
-        if ([_niceSpaceApp containsObject:FRONT_APP]) {
+        if ([_niceSpaceApp containsObject:_frontMostApp]) {
             _newChar = 0x200C; //Unicode character with empty space
         }
 
@@ -576,7 +596,7 @@ extern "C" {
 
         if (IS_DOUBLE_CODE(vCodeTable)) { //VNI or Unicode Compound
             if (_syncKey.back() > 1) {
-                if (!(vCodeTable == 3 && containUnicodeCompoundApp(FRONT_APP))) {
+                if (!(vCodeTable == 3 && containUnicodeCompoundApp(_frontMostApp))) {
                     CGEventTapPostEvent(_proxy, eventBackSpaceDown);
                     CGEventTapPostEvent(_proxy, eventBackSpaceUp);
                 }
@@ -598,7 +618,7 @@ extern "C" {
 
         if (IS_DOUBLE_CODE(vCodeTable)) { //VNI or Unicode Compound
             if (_syncKey.back() > 1) {
-                if (!(vCodeTable == 3 && containUnicodeCompoundApp(FRONT_APP))) {
+                if (!(vCodeTable == 3 && containUnicodeCompoundApp(_frontMostApp))) {
                     CGEventTapPostEvent(_proxy, eventVkeyDown);
                     CGEventTapPostEvent(_proxy, eventVkeyUp);
                 }
@@ -861,6 +881,7 @@ extern "C" {
         CFAbsoluteTime currentKeystrokeTime = 0;
         if (type == kCGEventKeyDown) {
             currentKeystrokeTime = CFAbsoluteTimeGetCurrent();
+            updateFrontMostAppForEvent(event);
             if (OTHER_CONTROL_KEY) {
                 AXInvalidateFocusCache();
             }
@@ -977,7 +998,7 @@ extern "C" {
                         _syncKey.clear();
                     } else if (pData->extCode == 2) { //delete key
                         if (_syncKey.size() > 0) {
-                            if (_syncKey.back() > 1 && (vCodeTable == 2 || !containUnicodeCompoundApp(FRONT_APP))) {
+                            if (_syncKey.back() > 1 && (vCodeTable == 2 || !containUnicodeCompoundApp(_frontMostApp))) {
                                 //send one more backspace
                                 CGEventTapPostEvent(_proxy, eventBackSpaceDown);
                                 CGEventTapPostEvent(_proxy, eventBackSpaceUp);
@@ -1003,7 +1024,7 @@ extern "C" {
 
                 //fix autocomplete
                 if (vFixRecommendBrowser && pData->extCode != 4) {
-                    if (vFixChromiumBrowser && [_unicodeCompoundApp containsObject:FRONT_APP]) {
+                    if (vFixChromiumBrowser && [_unicodeCompoundApp containsObject:_frontMostApp]) {
                         if (pData->backspaceCount > 0) {
                             SendShiftAndLeftArrow();
                             if (pData->backspaceCount == 1)

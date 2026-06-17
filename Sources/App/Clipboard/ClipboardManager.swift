@@ -195,10 +195,15 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func currentImagePNG() -> Data? {
-        if let png = pasteboard.data(forType: .png) { return png }
+        if let png = pasteboard.data(forType: .png) {
+            return png.count <= ClipboardManager.maxImageBytes ? png : nil
+        }
         if let tiff = pasteboard.data(forType: .tiff),
+           tiff.count <= ClipboardManager.maxImageBytes,
            let rep = NSBitmapImageRep(data: tiff) {
-            return rep.representation(using: .png, properties: [:])
+            guard let png = rep.representation(using: .png, properties: [:]),
+                  png.count <= ClipboardManager.maxImageBytes else { return nil }
+            return png
         }
         return nil
     }
@@ -212,7 +217,6 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func addImage(_ png: Data, source: String?) {
-        guard png.count <= ClipboardManager.maxImageBytes else { return }
         let filename = "\(UUID().uuidString).png"
         let url = imageDir.appendingPathComponent(filename)
         do { try png.write(to: url) } catch { return }

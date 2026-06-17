@@ -37,6 +37,17 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .about: return "info.circle"
         }
     }
+
+    var subtitle: String {
+        switch self {
+        case .typing: return "Kiểu gõ, chính tả và tương thích ứng dụng."
+        case .macro: return "Gõ tắt, nhập xuất và đồng bộ qua iCloud Drive."
+        case .convert: return "Chuyển đổi bảng mã tiếng Việt."
+        case .clipboard: return "Lưu, tìm kiếm và gọi lại clipboard gần đây."
+        case .system: return "Khởi động, biểu tượng và thiết lập nâng cao."
+        case .about: return "Phiên bản, tính năng mới và giấy phép."
+        }
+    }
 }
 
 @MainActor

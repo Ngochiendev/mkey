@@ -11,7 +11,14 @@
 import AppKit
 
 enum StatusIcon {
+    private static var cache: [Key: NSImage] = [:]
+
     static func image(vietnamese: Bool, gray: Bool) -> NSImage {
+        let key = Key(vietnamese: vietnamese, gray: gray)
+        if let image = cache[key] {
+            return image
+        }
+
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
             let color: NSColor = gray ? .black : NSColor(srgbRed: 0x00 / 255.0, green: 0x66 / 255.0, blue: 0xAB / 255.0, alpha: 1)
@@ -34,6 +41,12 @@ enum StatusIcon {
             return true
         }
         image.isTemplate = gray
+        cache[key] = image
         return image
+    }
+
+    private struct Key: Hashable {
+        let vietnamese: Bool
+        let gray: Bool
     }
 }

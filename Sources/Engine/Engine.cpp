@@ -18,19 +18,6 @@ static vector<Uint8> _charKeyCode = {
     KEY_SEMICOLON, KEY_QUOTE, KEY_COMMA, KEY_DOT, KEY_SLASH
 };
 
-static vector<Uint8> _breakCode = {
-    KEY_ESC, KEY_TAB, KEY_ENTER, KEY_RETURN, KEY_LEFT, KEY_RIGHT, KEY_DOWN, KEY_UP, KEY_COMMA, KEY_DOT,
-    KEY_SLASH, KEY_SEMICOLON, KEY_QUOTE, KEY_BACK_SLASH, KEY_MINUS, KEY_EQUALS, KEY_BACKQUOTE, KEY_TAB
-#if _WIN32
-	, VK_INSERT, VK_HOME, VK_END, VK_DELETE, VK_PRIOR, VK_NEXT, VK_SNAPSHOT, VK_PRINT, VK_SELECT, VK_HELP,
-	VK_EXECUTE, VK_NUMLOCK, VK_SCROLL
-#endif
-};
-
-static vector<Uint8> _macroBreakCode = {
-    KEY_RETURN, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_SEMICOLON, KEY_QUOTE, KEY_BACK_SLASH, KEY_MINUS, KEY_EQUALS
-};
-
 static Uint16 ProcessingChar[][11] = {
     {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z}, //Telex
     {KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0}, //VNI
@@ -145,21 +132,61 @@ void* vKeyInit() {
 bool isWordBreak(const vKeyEvent& event, const vKeyEventState& state, const Uint16& data) {
     if (event == vKeyEvent::Mouse)
         return true;
-    for (i = 0; i < _breakCode.size(); i++) {
-        if (_breakCode[i] == data) {
+    switch (data) {
+        case KEY_ESC:
+        case KEY_TAB:
+        case KEY_ENTER:
+        case KEY_RETURN:
+        case KEY_LEFT:
+        case KEY_RIGHT:
+        case KEY_DOWN:
+        case KEY_UP:
+        case KEY_COMMA:
+        case KEY_DOT:
+        case KEY_SLASH:
+        case KEY_SEMICOLON:
+        case KEY_QUOTE:
+        case KEY_BACK_SLASH:
+        case KEY_MINUS:
+        case KEY_EQUALS:
+        case KEY_BACKQUOTE:
             return true;
-        }
+#if _WIN32
+        case VK_INSERT:
+        case VK_HOME:
+        case VK_END:
+        case VK_DELETE:
+        case VK_PRIOR:
+        case VK_NEXT:
+        case VK_SNAPSHOT:
+        case VK_PRINT:
+        case VK_SELECT:
+        case VK_HELP:
+        case VK_EXECUTE:
+        case VK_NUMLOCK:
+        case VK_SCROLL:
+            return true;
+#endif
+        default:
+            return false;
     }
-    return false;
 }
 
 bool isMacroBreakCode(const int& data) {
-    for (i = 0; i < _macroBreakCode.size(); i++) {
-        if (_macroBreakCode[i] == data) {
+    switch (data) {
+        case KEY_RETURN:
+        case KEY_COMMA:
+        case KEY_DOT:
+        case KEY_SLASH:
+        case KEY_SEMICOLON:
+        case KEY_QUOTE:
+        case KEY_BACK_SLASH:
+        case KEY_MINUS:
+        case KEY_EQUALS:
             return true;
-        }
+        default:
+            return false;
     }
-    return false;
 }
 
 void setKeyData(const Byte& index, const Uint16& keyCode, const bool& isCaps) {
