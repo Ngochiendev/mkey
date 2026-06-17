@@ -19,12 +19,12 @@ enum StatusIcon {
             // rounded frame filling most of the icon (matches sibling icons)
             let frameRect = rect.insetBy(dx: 1, dy: 1)
             let frame = NSBezierPath(roundedRect: frameRect, xRadius: 4, yRadius: 4)
-            frame.lineWidth = 0.8
+            frame.lineWidth = 1
             color.setStroke()
             frame.stroke()
 
             let text = (vietnamese ? "V" : "E") as NSString
-            let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+            let font = NSFont.systemFont(ofSize: 12, weight: .medium)
             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
             let textSize = text.size(withAttributes: attrs)
             // optically centre the cap glyph within the frame
