@@ -41,7 +41,7 @@ static void convert(const string& str, vector<Uint32>& outData) {
         }
         
         //find character which has tone/mark
-        for (map<Uint32, vector<Uint16>>::iterator it = _codeTable[0].begin(); it != _codeTable[0].end(); ++it) {
+        for (auto it = _codeTable[0].begin(); it != _codeTable[0].end(); ++it) {
             kSign = -1;
             k = 0;
             for (int j = 0; j < it->second.size(); j++) {
@@ -137,7 +137,7 @@ static bool modifyCaseUnicode(Uint32& code, const bool& isUpperCase=true) {
     }
     
     //for unicode character
-    for (map<Uint32, vector<Uint16>>::iterator it = _codeTable[vCodeTable].begin(); it != _codeTable[vCodeTable].end(); ++it) {
+    for (auto it = _codeTable[vCodeTable].begin(); it != _codeTable[vCodeTable].end(); ++it) {
         for (_kMacro = 0; _kMacro < it->second.size(); _kMacro++) {
             if ((Uint16)code == it->second[_kMacro]) {
                 if (_kMacro % 2 == 0 && !isUpperCase)

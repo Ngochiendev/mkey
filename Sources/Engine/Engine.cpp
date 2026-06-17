@@ -8,8 +8,62 @@
 #include <algorithm>
 #include "Engine.h"
 #include <string.h>
-#include <list>
 #include "Macro.h"
+
+struct FixedState {
+    Uint32 data[MAX_BUFF * 2];
+    size_t count;
+
+    FixedState() : count(0) {}
+    
+    void clear() { count = 0; }
+    void push_back(Uint32 val) {
+        if (count < MAX_BUFF * 2) {
+            data[count++] = val;
+        }
+    }
+    void pop_back() {
+        if (count > 0) count--;
+    }
+    Uint32 back() const {
+        if (count > 0) return data[count - 1];
+        return 0;
+    }
+    size_t size() const { return count; }
+    Uint32 operator[](size_t idx) const { return data[idx]; }
+    Uint32& operator[](size_t idx) { return data[idx]; }
+};
+
+class TypingStatesList {
+private:
+    FixedState elements[MAX_BUFF * 4];
+    size_t totalSize;
+
+public:
+    TypingStatesList() : totalSize(0) {}
+
+    void clear() { totalSize = 0; }
+    size_t size() const { return totalSize; }
+    
+    void push_back(const FixedState& state) {
+        if (totalSize < MAX_BUFF * 4) {
+            elements[totalSize++] = state;
+        }
+    }
+    
+    FixedState back() const {
+        if (totalSize > 0) {
+            return elements[totalSize - 1];
+        }
+        return FixedState();
+    }
+    
+    void pop_back() {
+        if (totalSize > 0) {
+            totalSize--;
+        }
+    }
+};
 
 static Uint16 ProcessingChar[][11] = {
     {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z}, //Telex
@@ -62,9 +116,9 @@ vKeyHookState HookState;
  */
 static Uint32 TypingWord[MAX_BUFF];
 static Byte _index = 0;
-static vector<Uint32> _longWordHelper; //save the word when _index >= MAX_BUFF
-static list<vector<Uint32>> _typingStates; //Aug 28th, 2019: typing helper, save long state of Typing word, can go back and modify the word
-vector<Uint32> _typingStatesData;
+static FixedState _longWordHelper; //save the word when _index >= MAX_BUFF
+static TypingStatesList _typingStates; //Aug 28th, 2019: typing helper, save long state of Typing word, can go back and modify the word
+static FixedState _typingStatesData;
 
 /**
  * Use for restore key if invalid word
@@ -94,7 +148,7 @@ static int _spaceCount = 0; //add: July 30th, 2019
 static bool _hasHandledMacro = false; //for macro flag August 9th, 2019
 static Byte _upperCaseStatus = 0; //for Write upper case for the first letter; 2: will upper case
 static bool _isCharKeyCode;
-static vector<Uint32> _specialChar;
+static FixedState _specialChar;
 static bool _useSpellCheckingBefore;
 static bool _hasHandleQuickConsonant;
 static bool _willTempOffEngine = false;
@@ -103,13 +157,60 @@ static bool _willTempOffEngine = false;
 void findAndCalculateVowel(const bool& forGrammar=false);
 void insertMark(const Uint32& markMask, const bool& canModifyFlag=true);
 
-static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
 wstring utf8ToWideString(const string& str) {
-    return converter.from_bytes(str.c_str());
+    wstring result;
+    result.reserve(str.size());
+    for (size_t i = 0; i < str.size();) {
+        unsigned char c = str[i];
+        wchar_t uni = 0;
+        size_t bytes = 0;
+        if (c < 0x80) {
+            uni = c;
+            bytes = 1;
+        } else if ((c & 0xE0) == 0xC0) {
+            uni = c & 0x1F;
+            bytes = 2;
+        } else if ((c & 0xF0) == 0xE0) {
+            uni = c & 0x0F;
+            bytes = 3;
+        } else if ((c & 0xF8) == 0xF0) {
+            uni = c & 0x07;
+            bytes = 4;
+        } else {
+            i++;
+            continue;
+        }
+        if (i + bytes > str.size()) break;
+        for (size_t j = 1; j < bytes; j++) {
+            uni = (uni << 6) | (str[i + j] & 0x3F);
+        }
+        result.push_back(uni);
+        i += bytes;
+    }
+    return result;
 }
 
 string wideStringToUtf8(const wstring& str) {
-    return converter.to_bytes(str.c_str());
+    string result;
+    result.reserve(str.size() * 3);
+    for (wchar_t uni : str) {
+        if (uni < 0x80) {
+            result.push_back(static_cast<char>(uni));
+        } else if (uni < 0x800) {
+            result.push_back(static_cast<char>(0xC0 | (uni >> 6)));
+            result.push_back(static_cast<char>(0x80 | (uni & 0x3F)));
+        } else if (uni < 0x10000) {
+            result.push_back(static_cast<char>(0xE0 | (uni >> 12)));
+            result.push_back(static_cast<char>(0x80 | ((uni >> 6) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | (uni & 0x3F)));
+        } else if (uni < 0x110000) {
+            result.push_back(static_cast<char>(0xF0 | (uni >> 18)));
+            result.push_back(static_cast<char>(0x80 | ((uni >> 12) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | ((uni >> 6) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | (uni & 0x3F)));
+        }
+    }
+    return result;
 }
 
 void* vKeyInit() {
@@ -279,7 +380,7 @@ void checkSpelling(const bool& forceCheckVowel=false) {
             _spellingVowelOK = false;
             //check correct combined vowel
             if (k - j > 1 && forceCheckVowel) {
-                vector<vector<Uint32>>& vowelSet = _vowelCombine[CHR(j)];
+                const Array2D32& vowelSet = _vowelCombine[CHR(j)];
                 for (l = 0; l < vowelSet.size(); l++) {
                     _spellingFlag = false;
                     for (ii = 1; ii < vowelSet[l].size(); ii++) {
@@ -514,7 +615,7 @@ void startNewSession() {
     _longWordHelper.clear();
 }
 
-void checkCorrectVowel(vector<vector<Uint16>>& charset, int& i, int& k, const Uint16& markKey) {
+void checkCorrectVowel(const Array2D16& charset, int& i, int& k, const Uint16& markKey) {
     //ignore "qu" case
     if (_index >= 2 && CHR(_index-1) == KEY_U && CHR(_index-2) == KEY_Q) {
         isCorect = false;
@@ -659,7 +760,7 @@ void removeMark() {
 }
 
 bool canHasEndConsonant() {
-    vector<vector<Uint32>>& vo = _vowelCombine[CHR(VSI)];
+    const Array2D32& vo = _vowelCombine[CHR(VSI)];
     for (ii = 0; ii < vo.size(); ii++) {
         kk = VSI;
         for (iii = 1; iii < vo[ii].size(); iii++) {
@@ -1151,8 +1252,8 @@ void handleMainKey(const Uint16& data, const bool& isCaps) {
     
     //if is mark key
     if (IS_MARK_KEY(data)) {
-        for (i = 0; i < _vowelForMark.size(); i++) {
-            vector<vector<Uint16>>& charset = _vowelForMark[i];
+        for (i = 0; i < 6; i++) {
+            const Array2D16& charset = _vowelForMarkStatic[i].vowelSet;
             isCorect = false;
             isChanged = false;
             k = _index;
@@ -1201,7 +1302,7 @@ void handleMainKey(const Uint16& data, const bool& isCaps) {
     }
     
     keyForAEO = ((vInputType != vVNI) ? data : ((data == KEY_7 || data == KEY_8 ? KEY_W : (data == KEY_6 ? TypingWord[VEI] : data))));
-    vector<vector<Uint16>>& charset = _vowel[keyForAEO];
+    const Array2D16& charset = _vowel[keyForAEO];
     isCorect = false;
     isChanged = false;
     k = _index;

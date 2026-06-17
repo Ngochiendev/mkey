@@ -62,6 +62,7 @@ extern "C" {
     bool _cachedIsEnglishLayout = true;
     bool _inputSourceObserverInstalled = false;
     pid_t _frontMostPid = 0;
+    NSString* _frontMostApp = @"UnknownApp";
     bool _frontMostIsNiceSpace = false;
     bool _frontMostIsUnicodeCompound = false;
     bool _frontMostNeedsChromiumFix = false;
@@ -126,7 +127,12 @@ extern "C" {
         _axCachedFocused = focused;
         pid_t pid = 0;
         if (AXUIElementGetPid(focused, &pid) == kAXErrorSuccess) {
-            NSString* bid = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].bundleIdentifier;
+            NSString* bid = nil;
+            if (pid == _frontMostPid && _frontMostApp != nil) {
+                bid = _frontMostApp;
+            } else {
+                bid = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].bundleIdentifier;
+            }
             _axCachedIsSlow = (bid != nil) && [_slowPathApp containsObject:bid];
             _axCachedIsIncluded = AXAppIsIncluded(bid);
             
@@ -154,6 +160,8 @@ extern "C" {
     vKeyHookState* pData;
     CGEventRef eventBackSpaceDown;
     CGEventRef eventBackSpaceUp;
+    CGEventRef eventCharDown = NULL;
+    CGEventRef eventCharUp = NULL;
     UniChar _newChar, _newCharHi;
     CGEventRef _newEventDown, _newEventUp;
     CGKeyCode _keycode;
@@ -165,7 +173,26 @@ extern "C" {
     bool _willContinuteSending = false;
     bool _willSendControlKey = false;
 
-    vector<Uint16> _syncKey;
+    struct SyncKeyArray {
+        Uint16 data[128];
+        size_t count = 0;
+
+        void clear() { count = 0; }
+        void push_back(Uint16 val) {
+            if (count < 128) {
+                data[count++] = val;
+            }
+        }
+        Uint16 back() const {
+            if (count > 0) return data[count - 1];
+            return 0;
+        }
+        void pop_back() {
+            if (count > 0) count--;
+        }
+        size_t size() const { return count; }
+    };
+    SyncKeyArray _syncKey;
 
     Uint16 _uniChar[2];
     int _i, _j, _k;
@@ -175,7 +202,6 @@ extern "C" {
     int _languageTemp = 0; //use for smart switch key
     vector<Byte> savedSmartSwitchKeyData; //use for smart switch key
 
-    NSString* _frontMostApp = @"UnknownApp";
 
     /**
      * Atomically replace `deleteCount` characters before the caret (plus any
@@ -350,6 +376,8 @@ extern "C" {
             myEventSource = CGEventSourceCreate(kCGEventSourceStatePrivate);
             eventBackSpaceDown = CGEventCreateKeyboardEvent (myEventSource, 51, true);
             eventBackSpaceUp = CGEventCreateKeyboardEvent (myEventSource, 51, false);
+            eventCharDown = CGEventCreateKeyboardEvent (myEventSource, 0, true);
+            eventCharUp = CGEventCreateKeyboardEvent (myEventSource, 0, false);
         }
         pData = (vKeyHookState*)vKeyInit();
 
@@ -504,14 +532,10 @@ extern "C" {
     }
 
     void SendPureCharacter(const Uint16& ch) {
-        _newEventDown = CGEventCreateKeyboardEvent(myEventSource, 0, true);
-        _newEventUp = CGEventCreateKeyboardEvent(myEventSource, 0, false);
-        CGEventKeyboardSetUnicodeString(_newEventDown, 1, &ch);
-        CGEventKeyboardSetUnicodeString(_newEventUp, 1, &ch);
-        CGEventTapPostEvent(_proxy, _newEventDown);
-        CGEventTapPostEvent(_proxy, _newEventUp);
-        CFRelease(_newEventDown);
-        CFRelease(_newEventUp);
+        CGEventKeyboardSetUnicodeString(eventCharDown, 1, &ch);
+        CGEventKeyboardSetUnicodeString(eventCharUp, 1, &ch);
+        CGEventTapPostEvent(_proxy, eventCharDown);
+        CGEventTapPostEvent(_proxy, eventCharUp);
         if (IS_DOUBLE_CODE(vCodeTable)) {
             InsertKeyLength(1);
         }
@@ -598,14 +622,10 @@ extern "C" {
             _newChar = 0x200C; //Unicode character with empty space
         }
 
-        _newEventDown = CGEventCreateKeyboardEvent(myEventSource, 0, true);
-        _newEventUp = CGEventCreateKeyboardEvent(myEventSource, 0, false);
-        CGEventKeyboardSetUnicodeString(_newEventDown, 1, &_newChar);
-        CGEventKeyboardSetUnicodeString(_newEventUp, 1, &_newChar);
-        CGEventTapPostEvent(_proxy, _newEventDown);
-        CGEventTapPostEvent(_proxy, _newEventUp);
-        CFRelease(_newEventDown);
-        CFRelease(_newEventUp);
+        CGEventKeyboardSetUnicodeString(eventCharDown, 1, &_newChar);
+        CGEventKeyboardSetUnicodeString(eventCharUp, 1, &_newChar);
+        CGEventTapPostEvent(_proxy, eventCharDown);
+        CGEventTapPostEvent(_proxy, eventCharUp);
     }
 
     void SendBackspace() {
@@ -720,14 +740,10 @@ extern "C" {
             startNewSession();
         }
 
-        _newEventDown = CGEventCreateKeyboardEvent(myEventSource, 0, true);
-        _newEventUp = CGEventCreateKeyboardEvent(myEventSource, 0, false);
-        CGEventKeyboardSetUnicodeString(_newEventDown, _willContinuteSending ? 16 : _newCharSize - offset, _newCharString);
-        CGEventKeyboardSetUnicodeString(_newEventUp, _willContinuteSending ? 16 : _newCharSize - offset, _newCharString);
-        CGEventTapPostEvent(_proxy, _newEventDown);
-        CGEventTapPostEvent(_proxy, _newEventUp);
-        CFRelease(_newEventDown);
-        CFRelease(_newEventUp);
+        CGEventKeyboardSetUnicodeString(eventCharDown, _willContinuteSending ? 16 : _newCharSize - offset, _newCharString);
+        CGEventKeyboardSetUnicodeString(eventCharUp, _willContinuteSending ? 16 : _newCharSize - offset, _newCharString);
+        CGEventTapPostEvent(_proxy, eventCharDown);
+        CGEventTapPostEvent(_proxy, eventCharUp);
 
         if (_willContinuteSending) {
             SendNewCharString(dataFromMacro, dataFromMacro ? _k : 16);
