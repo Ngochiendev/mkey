@@ -251,6 +251,7 @@ final class AppState: ObservableObject {
                 self?.reloadFromEngine()
             }
         }
+        MacroCloudSync.shared.start()
     }
 
     /// Defaults for a fresh install — mirrors OpenKey's loadDefaultConfig.
@@ -271,6 +272,7 @@ final class AppState: ObservableObject {
             "vFixSpotlight": 1,
             "vUseAXReplacement": 1,
             "axIncludeApps": [],
+            "macroCloudSyncEnabled": true,
             "convertToolAlertWhenCompleted": true,
         ])
     }

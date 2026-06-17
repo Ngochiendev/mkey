@@ -43,10 +43,16 @@ struct AboutPage: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 FeatureCard(icon: "magnifyingglass",
                             title: "Mượt trong Spotlight",
-                            caption: "Sửa chữ qua Accessibility API giúp gõ nhanh không bị nhảy chữ")
+                            caption: "Tuỳ chọn bật hỗ trợ Trợ năng cho Spotlight và từng ứng dụng cần tương thích")
+                FeatureCard(icon: "icloud",
+                            title: "Đồng bộ iCloud Drive",
+                            caption: "Tự lưu danh sách gõ tắt vào iCloud Drive và cập nhật giữa nhiều máy")
                 FeatureCard(icon: "doc.on.clipboard",
                             title: "Lịch sử Clipboard",
                             caption: "Panel nổi tuỳ chỉnh kích thước, tìm kiếm, lưu text & hình ảnh")
+                FeatureCard(icon: "app.badge",
+                            title: "Tương thích theo ứng dụng",
+                            caption: "Danh sách bật hỗ trợ Trợ năng có thể thêm nhanh bằng kéo thả app")
                 FeatureCard(icon: "arrow.triangle.2.circlepath",
                             title: "Chuyển chế độ thông minh",
                             caption: "Tự động chuyển ngôn ngữ, bảng mã, gõ tắt theo từng ứng dụng")
